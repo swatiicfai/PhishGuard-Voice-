@@ -3,6 +3,10 @@
 
 > **All-Google AI infrastructure that actively defends vulnerable populations from real-time phone scams by deploying an autonomous AI decoy while streaming live threat intelligence to a security dashboard.**
 
+![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python) ![FastAPI](https://img.shields.io/badge/FastAPI-0.111-green?logo=fastapi) ![Firebase](https://img.shields.io/badge/Firebase-Firestore-orange?logo=firebase) ![Gemini](https://img.shields.io/badge/Gemini-Live-purple?logo=google) ![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey)
+
+🔴 **[Live Demo →](https://phishguard-voice.vercel.app)** &nbsp;|&nbsp; 📖 **[Try Demo Mode](#5-demo-mode-no-infrastructure-needed)** — no sign-up required
+
 ---
 
 ## ✨ Features
@@ -49,31 +53,37 @@ Browser (WebRTC mic) ──┐
 ```
 phishguard-voice/
 ├── backend/
-│   ├── main.py                      # FastAPI WebSocket server
+│   ├── main.py                      # FastAPI WebSocket server (REST + WS endpoints)
 │   ├── agents/
+│   │   ├── __init__.py
 │   │   ├── time_waster.py           # "Doris" persona system prompt
 │   │   └── security_auditor.py      # Auditor prompt + Gemini tool declarations
 │   ├── services/
+│   │   ├── __init__.py
 │   │   ├── gemini_live.py           # Vertex AI Gemini Live WebSocket client
 │   │   ├── firestore_client.py      # Firebase Admin SDK wrapper
 │   │   └── search_grounding.py      # Google Search verification
 │   ├── Dockerfile
+│   ├── .env.example                 # Environment variable template
 │   └── requirements.txt
 │
 ├── frontend/
-│   ├── index.html                   # Single-page threat dashboard
-│   ├── css/dashboard.css            # Dark glassmorphism aesthetic
+│   ├── index.html                   # Self-contained single-page dashboard (all JS/CSS inline)
+│   ├── css/
+│   │   └── dashboard.css            # Dark glassmorphism stylesheet
 │   └── js/
-│       ├── app.js                   # Main controller + demo mode
+│       ├── app.js                   # Main controller + demo mode simulation
 │       ├── firestore-listener.js    # Real-time Firestore → UI events
 │       ├── audio-stream.js          # WebRTC audio capture + PCM relay
 │       └── threat-visualizer.js     # Waveform · Gauge · Particles
 │
 ├── firebase/
-│   ├── firestore.rules
-│   └── firestore.indexes.json
+│   ├── firestore.rules              # Firestore security rules
+│   └── firestore.indexes.json       # Composite index definitions
 │
-└── firebase.json
+├── firebase.json                    # Firebase hosting + Firestore config
+├── deploy.ps1                       # One-click Cloud Run deploy script
+└── dev.ps1                          # Local development launcher
 ```
 
 ---
@@ -180,6 +190,52 @@ Click **Demo Mode** in the setup modal. A pre-scripted 30-second scam call simul
 | `ALLOWED_ORIGINS` | Comma-separated CORS allowed origins |
 | `GOOGLE_CUSTOM_SEARCH_API_KEY` | (Optional) For Google Search grounding |
 | `GOOGLE_CUSTOM_SEARCH_CX` | (Optional) Custom Search Engine ID |
+
+---
+
+## 🧱 Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Voice AI** | Vertex AI Gemini Live (`gemini-2.0-flash-live-001`) — audio-to-audio |
+| **Backend** | Python 3.12 · FastAPI · uvicorn · WebSockets |
+| **Real-time DB** | Cloud Firestore (Firebase Admin SDK) |
+| **Frontend** | Vanilla HTML/CSS/JS · Firebase JS SDK v10 |
+| **Hosting** | Firebase Hosting (frontend) · Cloud Run (backend) |
+| **Search** | Google Custom Search API (grounding) |
+| **Container** | Docker · Cloud Build · Artifact Registry |
+
+---
+
+## 💻 Local Development
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/swatiicfai/PhishGuard-Voice-.git
+cd PhishGuard-Voice-
+
+# 2. Install backend dependencies
+cd backend
+pip install -r requirements.txt
+
+# 3. Set up environment
+cp .env.example .env
+# Edit .env with your GCP credentials
+
+# 4. Start backend
+python -m uvicorn main:app --host 0.0.0.0 --port 8080
+
+# 5. Serve frontend (new terminal)
+cd ../frontend
+python -m http.server 5000
+# Open http://localhost:5000 → click Demo Mode (no credentials needed)
+```
+
+---
+
+## 🤝 Contributing
+
+Pull requests are welcome! For major changes, please open an issue first to discuss what you'd like to change.
 
 ---
 
