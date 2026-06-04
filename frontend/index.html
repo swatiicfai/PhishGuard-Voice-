@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PhishGuard Voice — Reverse-Scammer Sandbox & Threat Dashboard</title>
+  <meta name="description" content="Real-time AI-powered phone scam interception, autonomous time-wasting agent, and live threat intelligence dashboard powered by Google Gemini Live." />
+  <meta name="theme-color" content="#0a0f1e" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- Firebase compat SDKs (no ESM imports needed) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   DESIGN TOKENS
+═══════════════════════════════════════════════════════════════════ */
+:root {
+  --bg-deep:      #030712;
+  --bg-base:      #0a0f1e;
+  --bg-surface:   #0f1629;
+  --bg-elevated:  #151d35;
+  --bg-glass:     rgba(15,22,41,0.72);
+  --border:       rgba(99,135,255,0.18);
+  --border-hi:    rgba(99,135,255,0.42);
+  --primary:      #4f8fff;
+  --primary-glow: rgba(79,143,255,0.35);
+  --safe:    #22c55e; --safe-dim:    rgba(34,197,94,.15);
+  --low:     #84cc16; --low-dim:     rgba(132,204,22,.15);
+  --medium:  #f59e0b; --medium-dim:  rgba(245,158,11,.15);
+  --high:    #f97316; --high-dim:    rgba(249,115,22,.15);
+  --crit:    #ef4444; --crit-dim:    rgba(239,68,68,.15);
+  --crit-glow: rgba(239,68,68,.45);
+  --text:    #e8eeff; --text2: #8a9bcc; --text3: #4a5578; --texta: #7eb3ff;
+  --r-sm:6px; --r-md:12px; --r-lg:18px; --r-xl:24px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:'Inter',system-ui,sans-serif;
+  background:var(--bg-deep);color:var(--text);
+  min-height:100vh;overflow-x:hidden;line-height:1.6;
+}
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    linear-gradient(rgba(79,143,255,.04) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(79,143,255,.04) 1px,transparent 1px);
+  background-size:48px 48px;
+}
+body::after{
+  content:'';position:fixed;top:-120px;right:-120px;
+  width:500px;height:500px;pointer-events:none;z-index:0;
+  background:radial-gradient(circle,rgba(79,143,255,.09) 0%,transparent 70%);
+}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--bg-base)}
+::-webkit-scrollbar-thumb{background:var(--border-hi);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--primary)}
+
+/* ── Layout ─────────────────────────────────────────────────── */
+.app{position:relative;z-index:1;display:grid;grid-template-rows:64px 1fr;min-height:100vh}
+
+/* ── Topbar ─────────────────────────────────────────────────── */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 28px;background:rgba(10,15,30,.9);
+  backdrop-filter:blur(20px);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:100;
+}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-icon{
+  width:36px;height:36px;border-radius:var(--r-sm);font-size:18px;
+  background:linear-gradient(135deg,#1a4fcc,#4f8fff);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 16px var(--primary-glow);
+}
+.brand-name{
+  font-size:18px;font-weight:700;letter-spacing:-.02em;
+  background:linear-gradient(90deg,#7eb3ff,#4f8fff);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.brand-badge{
+  font-size:10px;font-weight:600;color:var(--primary);
+  background:var(--primary-glow);border:1px solid var(--border-hi);
+  border-radius:4px;padding:2px 7px;letter-spacing:.08em;text-transform:uppercase;
+}
+.topbar-right{display:flex;align-items:center;gap:16px}
+.status-pill{
+  display:flex;align-items:center;gap:8px;padding:6px 14px;
+  border-radius:20px;font-size:12px;font-weight:500;
+  letter-spacing:.04em;text-transform:uppercase;
+  border:1px solid var(--border);background:var(--bg-glass);backdrop-filter:blur(8px);
+}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--text3)}
+.status-pill.active .status-dot{background:var(--safe);box-shadow:0 0 8px var(--safe);animation:blink 1.4s infinite}
+.status-pill.danger .status-dot{background:var(--crit);box-shadow:0 0 8px var(--crit-glow);animation:blink .7s infinite}
+@keyframes blink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.8)}}
+.call-timer{font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--texta);letter-spacing:.08em}
+
+/* ── Dashboard grid ─────────────────────────────────────────── */
+.dashboard{
+  display:grid;
+  grid-template-columns:340px 1fr 320px;
+  grid-template-rows:auto 1fr;
+  gap:16px;padding:20px 24px;
+  max-width:1600px;margin:0 auto;width:100%;
+}
+
+/* ── Cards ──────────────────────────────────────────────────── */
+.card{
+  background:var(--bg-glass);backdrop-filter:blur(16px);
+  border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:20px;position:relative;overflow:hidden;
+  transition:border-color .25s,box-shadow .25s;
+}
+.card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(79,143,255,.4),transparent);
+}
+.card:hover{border-color:var(--border-hi);box-shadow:0 4px 32px rgba(0,0,0,.4)}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.card-title{
+  font-size:11px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--text2);
+  display:flex;align-items:center;gap:8px;
+}
+.card-icon{width:20px;height:20px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;background:var(--primary-glow)}
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.btn{
+  display:inline-flex;align-items:center;gap:8px;padding:11px 20px;
+  border-radius:var(--r-md);font-family:'Inter',sans-serif;font-size:13px;
+  font-weight:600;cursor:pointer;border:none;transition:all .15s;letter-spacing:.02em;
+}
+.btn-primary{background:linear-gradient(135deg,#1a4fcc,#4f8fff);color:#fff;box-shadow:0 0 20px var(--primary-glow)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 28px rgba(79,143,255,.5)}
+.btn-danger{background:linear-gradient(135deg,#991b1b,#ef4444);color:#fff;box-shadow:0 0 20px rgba(239,68,68,.3)}
+.btn-danger:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 28px rgba(239,68,68,.5)}
+.btn-danger:disabled{opacity:.4;cursor:not-allowed}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--bg-elevated);color:var(--text);border-color:var(--border-hi)}
+.btn-full{width:100%;justify-content:center}
+.btn-sm{padding:7px 14px;font-size:12px}
+
+/* ── Call controls ───────────────────────────────────────────── */
+.call-controls{display:flex;flex-direction:column;gap:10px}
+
+/* ── Waveform ────────────────────────────────────────────────── */
+.waveform-wrap{position:relative;height:70px;background:var(--bg-deep);border-radius:var(--r-md);border:1px solid var(--border);overflow:hidden;margin:12px 0}
+#waveform-canvas{width:100%;height:100%;display:block}
+.wave-lbl{position:absolute;top:6px;left:10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3);letter-spacing:.08em}
+
+/* ── Caller profile ──────────────────────────────────────────── */
+.caller-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.prof-field{background:var(--bg-deep);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 10px}
+.prof-label{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:4px}
+.prof-val{font-size:12px;font-weight:500;color:var(--text);font-family:'JetBrains Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prof-val.empty{color:var(--text3);font-style:italic}
+
+/* ── Gauge ───────────────────────────────────────────────────── */
+.panel-gauge{grid-column:1;grid-row:2}
+.gauge-wrap{display:flex;flex-direction:column;align-items:center;gap:12px}
+.gauge-svg-wrap{position:relative;width:200px;height:120px}
+#gauge-svg{overflow:visible}
+.gauge-val{position:absolute;bottom:0;left:50%;transform:translateX(-50%);text-align:center}
+.gauge-num{font-family:'JetBrains Mono',monospace;font-size:40px;font-weight:600;line-height:1;transition:color .45s}
+.gauge-sub{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text3)}
+.threat-badge{display:inline-block;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;transition:all .25s}
+.threat-badge.safe    {background:var(--safe-dim);color:var(--safe);border:1px solid var(--safe)}
+.threat-badge.low     {background:var(--low-dim);color:var(--low);border:1px solid var(--low)}
+.threat-badge.medium  {background:var(--medium-dim);color:var(--medium);border:1px solid var(--medium)}
+.threat-badge.high    {background:var(--high-dim);color:var(--high);border:1px solid var(--high)}
+.threat-badge.critical{background:var(--crit-dim);color:var(--crit);border:1px solid var(--crit);box-shadow:0 0 12px var(--crit-glow);animation:cpulse 1s infinite}
+@keyframes cpulse{0%,100%{box-shadow:0 0 12px var(--crit-glow)}50%{box-shadow:0 0 24px var(--crit-glow)}}
+
+/* ── Stats ───────────────────────────────────────────────────── */
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+.stat-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;text-align:center}
+.stat-val{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:600;color:var(--primary);line-height:1}
+.stat-lbl{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-top:6px}
+
+/* ── Centre column ───────────────────────────────────────────── */
+.panel-transcript{grid-column:2;grid-row:1/3;display:flex;flex-direction:column;gap:16px}
+.transcript-feed{flex:1;display:flex;flex-direction:column;gap:10px;overflow-y:auto;max-height:470px;padding-right:4px}
+.feed-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;height:120px;color:var(--text3);font-size:13px}
+.feed-empty-icon{font-size:28px;opacity:.4}
+
+.bubble{display:flex;gap:10px;animation:slideIn .3s ease}
+@keyframes slideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.bubble.scammer{flex-direction:row-reverse}
+.bubble-av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.bubble-av.doris{background:linear-gradient(135deg,#1a4fcc,#4f8fff)}
+.bubble-av.scammer{background:linear-gradient(135deg,#7f1d1d,#ef4444)}
+.bubble-body{max-width:78%}
+.bubble-meta{font-size:10px;color:var(--text3);margin-bottom:4px;display:flex;gap:8px}
+.bubble-text{
+  background:var(--bg-elevated);border:1px solid var(--border);
+  border-radius:var(--r-md);padding:10px 14px;font-size:13px;
+  line-height:1.55;color:var(--text);word-break:break-word;
+}
+.bubble.scammer .bubble-text{border-color:rgba(239,68,68,.25);background:rgba(127,29,29,.2)}
+.fraud-hl{background:rgba(239,68,68,.2);color:#fca5a5;border-radius:3px;padding:1px 4px;font-weight:600}
+
+/* ── Info strip ──────────────────────────────────────────────── */
+.info-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center;padding:12px 14px;background:var(--bg-deep);border:1px solid var(--border);border-radius:var(--r-md)}
+.info-icon{font-size:20px;margin-bottom:4px}
+.info-lbl{font-size:10px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase}
+.info-desc{font-size:11px;color:var(--text2);margin-top:2px}
+
+/* ── Right column ────────────────────────────────────────────── */
+.panel-threats{grid-column:3;grid-row:1/3;display:flex;flex-direction:column;gap:16px}
+.threat-feed{flex:1;display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:400px;padding-right:4px}
+
+.threat-card{
+  background:var(--bg-elevated);border:1px solid var(--border);
+  border-radius:var(--r-md);padding:12px 14px;
+  animation:slideIn .3s ease;position:relative;overflow:hidden;
+}
+.threat-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:2px}
+.threat-card.LOW::before{background:var(--low)}
+.threat-card.MEDIUM::before{background:var(--medium)}
+.threat-card.HIGH::before{background:var(--high)}
+.threat-card.CRITICAL::before{background:var(--crit)}
+.threat-card.LOW{border-color:rgba(132,204,22,.25)}
+.threat-card.MEDIUM{border-color:rgba(245,158,11,.3)}
+.threat-card.HIGH{border-color:rgba(249,115,22,.35)}
+.threat-card.CRITICAL{border-color:rgba(239,68,68,.4);box-shadow:0 0 12px rgba(239,68,68,.15)}
+.threat-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.cat-badge{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:4px}
+.cat-IMPERSONATION{background:rgba(139,92,246,.2);color:#c4b5fd;border:1px solid rgba(139,92,246,.4)}
+.cat-WIRE_TRANSFER,.cat-GIFT_CARD,.cat-PERSONAL_DATA{background:rgba(239,68,68,.2);color:#fca5a5;border:1px solid rgba(239,68,68,.4)}
+.cat-REMOTE_ACCESS,.cat-URGENCY_PRESSURE{background:rgba(245,158,11,.2);color:#fcd34d;border:1px solid rgba(245,158,11,.4)}
+.cat-LEGAL_THREAT{background:rgba(249,115,22,.2);color:#fdba74;border:1px solid rgba(249,115,22,.4)}
+.cat-ACCOUNT_SUSPENSION{background:rgba(79,143,255,.2);color:#93c5fd;border:1px solid rgba(79,143,255,.4)}
+.cat-CALLBACK_NUMBER{background:rgba(34,197,94,.15);color:#86efac;border:1px solid rgba(34,197,94,.4)}
+.cat-UNKNOWN{background:rgba(100,116,139,.2);color:#94a3b8;border:1px solid rgba(100,116,139,.4)}
+.sev-chip{font-size:9px;font-weight:600;letter-spacing:.08em;padding:2px 6px;border-radius:3px}
+.sev-LOW{color:var(--low);background:var(--low-dim)}
+.sev-MEDIUM{color:var(--medium);background:var(--medium-dim)}
+.sev-HIGH{color:var(--high);background:var(--high-dim)}
+.sev-CRITICAL{color:var(--crit);background:var(--crit-dim)}
+.threat-evidence{font-size:11px;color:var(--text2);font-style:italic;line-height:1.45;margin-bottom:4px}
+.threat-evidence::before{content:'"'}.threat-evidence::after{content:'"'}
+.threat-ts{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text3)}
+
+/* ── Grounding ───────────────────────────────────────────────── */
+.grounding-feed{display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto}
+.ground-card{background:var(--bg-deep);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 12px;animation:slideIn .3s ease}
+.ground-hdr{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.risk-badge{font-size:9px;font-weight:700;letter-spacing:.08em;padding:2px 7px;border-radius:4px}
+.risk-SAFE{background:var(--safe-dim);color:var(--safe);border:1px solid rgba(34,197,94,.4)}
+.risk-SUSPICIOUS{background:var(--medium-dim);color:var(--medium);border:1px solid rgba(245,158,11,.4)}
+.risk-HIGH_RISK{background:var(--crit-dim);color:var(--crit);border:1px solid rgba(239,68,68,.4)}
+.risk-UNKNOWN{background:rgba(100,116,139,.2);color:#94a3b8;border:1px solid rgba(100,116,139,.4)}
+.ground-query{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--texta);margin-bottom:4px}
+.ground-snippet{font-size:11px;color:var(--text2);line-height:1.4}
+.ground-source{font-size:9px;color:var(--text3);margin-top:4px;word-break:break-all}
+
+/* ── Particle canvas ─────────────────────────────────────────── */
+#particle-canvas{position:fixed;inset:0;pointer-events:none;z-index:200}
+
+/* ── Modal ───────────────────────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:rgba(3,7,18,.85);backdrop-filter:blur(8px);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--bg-surface);border:1px solid var(--border-hi);border-radius:var(--r-xl);padding:32px;width:100%;max-width:480px;box-shadow:0 24px 80px rgba(0,0,0,.6);animation:modalIn .25s ease}
+@keyframes modalIn{from{opacity:0;transform:scale(.95) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal-title{font-size:20px;font-weight:700;margin-bottom:8px}
+.modal-sub{font-size:13px;color:var(--text2);margin-bottom:24px;line-height:1.5}
+.form-group{margin-bottom:16px}
+.form-label{display:block;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);margin-bottom:6px}
+.form-input{width:100%;background:var(--bg-deep);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text);outline:none;transition:border-color .15s,box-shadow .15s}
+.form-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-glow)}
+.modal-actions{display:flex;gap:10px;margin-top:24px}
+
+/* ── Alert banner ────────────────────────────────────────────── */
+.alert-banner{position:fixed;top:80px;right:20px;z-index:400;display:flex;flex-direction:column;gap:8px;pointer-events:none;max-width:340px}
+.alert{background:var(--bg-elevated);border:1px solid var(--border-hi);border-radius:var(--r-md);padding:12px 16px;font-size:12px;line-height:1.5;pointer-events:auto;animation:alertIn .3s ease;display:flex;gap:10px;align-items:flex-start}
+.alert.critical{border-color:rgba(239,68,68,.5);background:rgba(127,29,29,.4);box-shadow:0 0 20px rgba(239,68,68,.2)}
+@keyframes alertIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+
+/* ── Stack note ──────────────────────────────────────────────── */
+.stack-note{padding:10px 12px;background:rgba(79,143,255,.06);border:1px solid var(--border);border-radius:var(--r-md);font-size:10px;color:var(--text3);line-height:1.6;margin-top:16px}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media(max-width:1280px){
+  .dashboard{grid-template-columns:300px 1fr}
+  .panel-threats{grid-column:1/3;grid-row:3}
+}
+@media(max-width:768px){
+  .dashboard{grid-template-columns:1fr;padding:12px}
+  .panel-transcript,.panel-gauge,.panel-control,.panel-threats{grid-column:1;grid-row:auto}
+  .stats-row{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- Particle FX overlay -->
+<canvas id="particle-canvas"></canvas>
+
+<!-- Alert banner -->
+<div id="alert-banner" class="alert-banner" aria-live="assertive"></div>
+
+<!-- Config Modal -->
+<div id="config-modal" class="modal-overlay hidden" role="dialog" aria-labelledby="modal-title">
+  <div class="modal">
+    <h2 class="modal-title" id="modal-title">🛡️ PhishGuard Voice Setup</h2>
+    <p class="modal-sub">Connect to your Cloud Run backend and Firebase project, or use <strong>Demo Mode</strong> to explore with simulated scam events — no infrastructure required.</p>
+    <div class="form-group">
+      <label class="form-label" for="inp-backend">Backend URL (Cloud Run)</label>
+      <input id="inp-backend" class="form-input" type="url" placeholder="https://phishguard-xxxxx-uc.a.run.app" />
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="inp-project">Firebase Project ID</label>
+      <input id="inp-project" class="form-input" type="text" placeholder="my-phishguard-project" />
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="inp-apikey">Firebase Web API Key</label>
+      <input id="inp-apikey" class="form-input" type="text" placeholder="AIzaSy..." />
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="inp-appid">Firebase App ID</label>
+      <input id="inp-appid" class="form-input" type="text" placeholder="1:1234567890:web:abcdef" />
+    </div>
+    <div class="modal-actions">
+      <button id="btn-save-cfg" class="btn btn-primary" style="flex:1">💾 Save & Connect</button>
+      <button id="btn-demo"     class="btn btn-ghost"   style="flex:1">🎭 Demo Mode</button>
+    </div>
+  </div>
+</div>
+
+<!-- App shell -->
+<div class="app">
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-icon">🛡️</div>
+      <span class="brand-name">PhishGuard Voice</span>
+      <span class="brand-badge">v1.0</span>
+    </div>
+    <div class="topbar-right">
+      <button id="btn-try-demo" class="btn btn-ghost btn-sm" style="border-color:rgba(139,92,246,.5);color:#c4b5fd;background:rgba(139,92,246,.12)" title="Run simulated scam demo — no backend needed">🎭 Try Demo</button>
+      <div id="status-pill" class="status-pill idle" aria-live="polite">
+        <div class="status-dot"></div>
+        <span id="status-text">STANDBY</span>
+      </div>
+      <span id="call-timer" class="call-timer">00:00</span>
+      <button id="btn-settings" class="btn btn-ghost btn-sm" title="Settings">⚙️</button>
+    </div>
+  </header>
+
+  <!-- Dashboard -->
+  <main class="dashboard">
+
+    <!-- ═══ LEFT COL ═══ -->
+    <!-- Control Panel -->
+    <section class="card" style="grid-column:1;grid-row:1" aria-labelledby="ctrl-title">
+      <div class="card-hdr">
+        <h2 class="card-title" id="ctrl-title"><span class="card-icon">📞</span>Call Control</h2>
+      </div>
+      <div class="call-controls">
+        <button id="btn-intercept" class="btn btn-primary btn-full">🎙️ Intercept Call</button>
+        <button id="btn-end"       class="btn btn-danger  btn-full" disabled>📵 End Call</button>
+      </div>
+      <div class="waveform-wrap" title="Live audio waveform">
+        <span class="wave-lbl">LIVE AUDIO</span>
+        <canvas id="waveform-canvas"></canvas>
+      </div>
+      <div class="card-hdr" style="margin-top:8px">
+        <h3 class="card-title"><span class="card-icon">🕵️</span>Caller Profile</h3>
+      </div>
+      <div class="caller-grid">
+        <div class="prof-field"><div class="prof-label">Organisation</div><div id="prof-org"      class="prof-val empty">—</div></div>
+        <div class="prof-field"><div class="prof-label">Agent Name</div>  <div id="prof-name"     class="prof-val empty">—</div></div>
+        <div class="prof-field"><div class="prof-label">Script Type</div> <div id="prof-script"   class="prof-val empty">—</div></div>
+        <div class="prof-field"><div class="prof-label">Callback #</div>  <div id="prof-callback" class="prof-val empty">—</div></div>
+      </div>
+    </section>
+
+    <!-- Threat Score Gauge -->
+    <section class="card panel-gauge" aria-labelledby="gauge-title">
+      <div class="card-hdr">
+        <h2 class="card-title" id="gauge-title"><span class="card-icon">🎯</span>Threat Score</h2>
+      </div>
+      <div class="gauge-wrap">
+        <div class="gauge-svg-wrap">
+          <svg id="gauge-svg" width="200" height="120" viewBox="0 0 200 120" role="img" aria-label="Threat score gauge"></svg>
+          <div class="gauge-val">
+            <div id="gauge-num" class="gauge-num" style="color:var(--safe)">0</div>
+            <div class="gauge-sub">/ 100</div>
+          </div>
+        </div>
+        <div id="gauge-badge" class="threat-badge safe">SAFE</div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-card"><div id="stat-wasted" class="stat-val" style="font-size:16px;color:var(--safe)">00:00</div><div class="stat-lbl">Time Wasted</div></div>
+        <div class="stat-card"><div id="stat-events" class="stat-val">0</div><div class="stat-lbl">Threats Found</div></div>
+        <div class="stat-card"><div id="stat-score"  class="stat-val" style="color:var(--crit)">0</div><div class="stat-lbl">Risk Score</div></div>
+      </div>
+    </section>
+
+    <!-- ═══ CENTRE COL ═══ -->
+    <section class="card panel-transcript" aria-labelledby="tx-title">
+      <div class="card-hdr">
+        <h2 class="card-title" id="tx-title"><span class="card-icon">💬</span>Live Transcript</h2>
+        <span style="font-size:11px;color:var(--text3)">🧓 Doris (AI) · ☠️ Scammer</span>
+      </div>
+      <div id="transcript-feed" class="transcript-feed" role="log" aria-live="polite">
+        <div class="feed-empty"><div class="feed-empty-icon">🎙️</div><span>Transcript will appear as the call progresses</span></div>
+      </div>
+      <div class="info-strip">
+        <div><div class="info-icon">🎭</div><div class="info-lbl">Time-Waster</div><div class="info-desc">Keeps scammer engaged</div></div>
+        <div><div class="info-icon">🔍</div><div class="info-lbl">Auditor</div><div class="info-desc">Silent threat detection</div></div>
+        <div><div class="info-icon">🛰️</div><div class="info-lbl">Grounding</div><div class="info-desc">Live Google verification</div></div>
+      </div>
+    </section>
+
+    <!-- ═══ RIGHT COL ═══ -->
+    <section class="card panel-threats" aria-labelledby="tf-title">
+      <div class="card-hdr">
+        <h2 class="card-title" id="tf-title"><span class="card-icon">⚡</span>Threat Intelligence Feed</h2>
+      </div>
+      <div id="threat-feed" class="threat-feed" role="log" aria-live="polite">
+        <div class="feed-empty"><div class="feed-empty-icon">🛡️</div><span>Threat events will appear here in real-time</span></div>
+      </div>
+      <div class="card-hdr" style="margin-top:16px">
+        <h3 class="card-title"><span class="card-icon">🌐</span>Google Search Verification</h3>
+      </div>
+      <div id="grounding-feed" class="grounding-feed" aria-live="polite">
+        <div style="padding:12px;text-align:center;color:var(--text3);font-size:12px;border:1px dashed var(--border);border-radius:var(--r-md)">
+          Grounding results appear when caller claims are detected
+        </div>
+      </div>
+      <div class="stack-note">
+        <strong style="color:var(--text2)">Stack:</strong>
+        Gemini Live (audio↔audio) · Cloud Run · Firestore · Google Search Grounding · Firebase Hosting
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Floating demo hint (shown on first visit) -->
+<div id="demo-hint" style="
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:rgba(139,92,246,.18);border:1px solid rgba(139,92,246,.5);
+  border-radius:40px;padding:10px 22px;display:flex;align-items:center;gap:10px;
+  font-size:13px;font-weight:600;color:#c4b5fd;
+  backdrop-filter:blur(12px);z-index:300;
+  box-shadow:0 0 24px rgba(139,92,246,.3);
+  animation:floatHint 3s ease-in-out infinite;
+  cursor:pointer;
+">
+  <span style="font-size:18px">🎭</span>
+  Click <strong style="color:#e9d5ff">Try Demo</strong> in the top-right to launch a live scam simulation!
+  <span id="hint-close" style="margin-left:8px;opacity:.6;cursor:pointer;font-size:16px">✕</span>
+</div>
+<style>
+@keyframes floatHint{
+  0%,100%{transform:translateX(-50%) translateY(0)}
+  50%{transform:translateX(-50%) translateY(-6px)}
+}
+</style>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     ALL APPLICATION LOGIC — single inline script, no imports
+═══════════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+/* ─── State ───────────────────────────────────────────────────── */
+const S = {
+  sessionId: null, backendUrl: '', firebaseCfg: null,
+  callStart: null, timerIv: null,
+  threatScore: 0, totalEvents: 0, demoMode: false,
+  ws: null, audioCtx: null, captureStream: null,
+  scriptProc: null, playbackCtx: null, nextPlayAt: 0,
+};
+
+/* ─── DOM helpers ─────────────────────────────────────────────── */
+const $  = id => document.getElementById(id);
+const el = {
+  modal:      $('config-modal'),
+  inpBackend: $('inp-backend'), inpProject: $('inp-project'),
+  inpApiKey:  $('inp-apikey'),  inpAppId:   $('inp-appid'),
+  btnSave:    $('btn-save-cfg'),btnDemo:    $('btn-demo'),
+  btnInt:     $('btn-intercept'),btnEnd:    $('btn-end'),
+  btnTryDemo: $('btn-try-demo'),
+  btnSettings:$('btn-settings'),
+  pill:       $('status-pill'), pillTxt:    $('status-text'),
+  timer:      $('call-timer'),
+  waveCanvas: $('waveform-canvas'),
+  gaugeSvg:   $('gauge-svg'),   gaugeNum:  $('gauge-num'),
+  gaugeBadge: $('gauge-badge'),
+  statWasted: $('stat-wasted'), statEvents:$('stat-events'), statScore:$('stat-score'),
+  profOrg:    $('prof-org'),    profName:  $('prof-name'),
+  profScript: $('prof-script'), profCb:    $('prof-callback'),
+  txFeed:     $('transcript-feed'),
+  threatFeed: $('threat-feed'),
+  gndFeed:    $('grounding-feed'),
+  particles:  $('particle-canvas'),
+  alertBanner:$('alert-banner'),
+  demoHint:   $('demo-hint'),
+  hintClose:  $('hint-close'),
+};
+
+/* ══════════════════════════════════════════════════════════════
+   WAVEFORM VISUALISER
+══════════════════════════════════════════════════════════════ */
+const WAVE_LEN = 120;
+const waveHist = new Array(WAVE_LEN).fill(0);
+let waveRaf = null, waveCtx = null, waveActive = false;
+let demoWaveIv = null;
+
+function initWaveform() {
+  waveCtx = el.waveCanvas.getContext('2d');
+  // Defer resize until after first paint so parent has dimensions
+  requestAnimationFrame(() => { resizeWave(); });
+  window.addEventListener('resize', resizeWave);
+}
+function resizeWave() {
+  const r = el.waveCanvas.parentElement.getBoundingClientRect();
+  if (r.width > 0) { el.waveCanvas.width = r.width; el.waveCanvas.height = r.height; }
+}
+function pushWave(lvl) { waveHist.push(lvl); if (waveHist.length > WAVE_LEN) waveHist.shift(); }
+function startWave() {
+  resizeWave(); // ensure canvas sized before drawing
+  waveActive = true;
+  // Demo: simulate waveform pulses even without mic
+  demoWaveIv = setInterval(() => {
+    if (!S.sessionId) return;
+    pushWave(0.05 + Math.random() * 0.25);
+  }, 80);
+  drawWave();
+}
+function stopWave()  {
+  waveActive = false;
+  if (waveRaf) { cancelAnimationFrame(waveRaf); waveRaf = null; }
+  if (demoWaveIv) { clearInterval(demoWaveIv); demoWaveIv = null; }
+  waveCtx && waveCtx.clearRect(0, 0, el.waveCanvas.width, el.waveCanvas.height);
+}
+function drawWave() {
+  if (!waveActive) return;
+  const c = waveCtx;
+  const w = el.waveCanvas.width || el.waveCanvas.offsetWidth || 280;
+  const h = el.waveCanvas.height || el.waveCanvas.offsetHeight || 70;
+  const mid = h / 2;
+  c.clearRect(0, 0, w, h);
+  const bw = w / WAVE_LEN;
+  waveHist.forEach((lvl, i) => {
+    const bh  = Math.max(2, lvl * h * 2.5);
+    const x   = i * bw;
+    const intensity = Math.min(1, lvl * 4);
+    const rv  = Math.round(79  + intensity * 160);
+    const gv  = Math.round(143 - intensity * 100);
+    const bv  = Math.round(255 - intensity * 210);
+    c.fillStyle = `rgba(${rv},${gv},${bv},${0.6 + intensity * 0.4})`;
+    c.beginPath();
+    c.rect(x + 1, mid - bh / 2, bw - 2, bh);
+    c.fill();
+  });
+  waveRaf = requestAnimationFrame(drawWave);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   THREAT SCORE GAUGE (SVG arc)
+══════════════════════════════════════════════════════════════ */
+let gaugeArc = null, gaugeCurrent = 0, gaugeTarget = 0, gaugeRaf = null;
+
+function initGauge() {
+  const svg = el.gaugeSvg;
+  const track = makePath('rgba(99,135,255,.12)', 12);
+  track.setAttribute('d', arc(100, 110, 85, 180, 360));
+  svg.appendChild(track);
+  gaugeArc = makePath('#22c55e', 12);
+  gaugeArc.setAttribute('d', arc(100, 110, 85, 180, 180));
+  gaugeArc.style.filter = 'drop-shadow(0 0 6px currentColor)';
+  svg.appendChild(gaugeArc);
+}
+function setScore(score) {
+  gaugeTarget = Math.max(0, Math.min(100, score));
+  if (!gaugeRaf) animGauge();
+}
+function animGauge() {
+  const diff = gaugeTarget - gaugeCurrent;
+  if (Math.abs(diff) < 0.5) { gaugeCurrent = gaugeTarget; gaugeRaf = null; renderGauge(gaugeCurrent); return; }
+  gaugeCurrent += diff * 0.1;
+  renderGauge(gaugeCurrent);
+  gaugeRaf = requestAnimationFrame(animGauge);
+}
+function renderGauge(s) {
+  if (!gaugeArc) return;
+  gaugeArc.setAttribute('d', arc(100, 110, 85, 180, 180 + (s / 100) * 180));
+  let col, lbl, cls;
+  if      (s < 20) { col='#22c55e'; lbl='SAFE';     cls='safe'; }
+  else if (s < 45) { col='#84cc16'; lbl='LOW';      cls='low'; }
+  else if (s < 65) { col='#f59e0b'; lbl='MODERATE'; cls='medium'; }
+  else if (s < 85) { col='#f97316'; lbl='HIGH';     cls='high'; }
+  else             { col='#ef4444'; lbl='CRITICAL';  cls='critical'; }
+  gaugeArc.style.stroke = col; gaugeArc.style.color = col;
+  el.gaugeNum.style.color = col; el.gaugeNum.textContent = Math.round(s);
+  el.gaugeBadge.textContent = lbl; el.gaugeBadge.className = `threat-badge ${cls}`;
+}
+function makePath(stroke, w) {
+  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  p.setAttribute('fill','none'); p.setAttribute('stroke-width', String(w));
+  p.setAttribute('stroke-linecap','round'); if (stroke) p.setAttribute('stroke', stroke);
+  return p;
+}
+function arc(cx, cy, r, a1, a2) {
+  const s = polar(cx, cy, r, a1), e = polar(cx, cy, r, a2);
+  return `M ${s.x} ${s.y} A ${r} ${r} 0 ${a2 - a1 > 180 ? 1 : 0} 1 ${e.x} ${e.y}`;
+}
+function polar(cx, cy, r, deg) {
+  const rad = (deg - 90) * Math.PI / 180;
+  return { x: +(cx + r * Math.cos(rad)).toFixed(3), y: +(cy + r * Math.sin(rad)).toFixed(3) };
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PARTICLE BURST
+══════════════════════════════════════════════════════════════ */
+const particles = [];
+let pCtx = null, pRaf = null;
+
+function initParticles() {
+  pCtx = el.particles.getContext('2d');
+  resizeParticles();
+  window.addEventListener('resize', resizeParticles);
+  animParticles();
+}
+function resizeParticles() { el.particles.width = window.innerWidth; el.particles.height = window.innerHeight; }
+function burst(severity) {
+  const w = el.particles.width, h = el.particles.height;
+  const count  = severity === 'CRITICAL' ? 60 : severity === 'HIGH' ? 35 : 18;
+  const colour = severity === 'CRITICAL' ? '#ef4444' : severity === 'HIGH' ? '#f97316' : '#f59e0b';
+  const ox = w * 0.80 + (Math.random() - 0.5) * 80;
+  const oy = h * 0.20 + Math.random() * 40;
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 4;
+    particles.push({ x: ox, y: oy, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - 2,
+      life: 1, decay: 0.018 + Math.random() * 0.02, r: 2 + Math.random() * 3, colour });
+  }
+}
+function animParticles() {
+  pCtx.clearRect(0, 0, el.particles.width, el.particles.height);
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.life -= p.decay;
+    if (p.life <= 0) { particles.splice(i, 1); continue; }
+    pCtx.globalAlpha = p.life;
+    pCtx.fillStyle = p.colour; pCtx.shadowColor = p.colour; pCtx.shadowBlur = 6;
+    pCtx.beginPath(); pCtx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2); pCtx.fill();
+  }
+  pCtx.globalAlpha = 1; pCtx.shadowBlur = 0;
+  requestAnimationFrame(animParticles);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   AUDIO STREAMING (WebRTC → WebSocket → Gemini Live)
+══════════════════════════════════════════════════════════════ */
+async function startAudio(wsUrl) {
+  try {
+    S.captureStream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount:1, sampleRate:16000, echoCancellation:true, noiseSuppression:true },
+      video: false,
+    });
+  } catch(e) { showAlert('⚠️ Microphone access denied: ' + e.message, 'error'); return; }
+
+  S.ws = new WebSocket(wsUrl);
+  S.ws.binaryType = 'arraybuffer';
+
+  S.ws.onopen = () => {
+    S.audioCtx = new AudioContext({ sampleRate: 16000 });
+    const src  = S.audioCtx.createMediaStreamSource(S.captureStream);
+    const buf  = Math.floor(16000 * 0.1);
+    S.scriptProc = S.audioCtx.createScriptProcessor(buf, 1, 1);
+    S.scriptProc.onaudioprocess = evt => {
+      if (!S.ws || S.ws.readyState !== WebSocket.OPEN) return;
+      const f32 = evt.inputBuffer.getChannelData(0);
+      pushWave(Math.sqrt(f32.reduce((a,v) => a + v*v, 0) / f32.length));
+      const pcm = f32ToPcm16(f32);
+      S.ws.send(pcm.buffer);
+    };
+    src.connect(S.scriptProc);
+    S.scriptProc.connect(S.audioCtx.destination);
+    S.playbackCtx = new AudioContext({ sampleRate: 24000 });
+    S.nextPlayAt  = S.playbackCtx.currentTime;
+    S.callStart   = Date.now();
+    startTimer(); startWave();
+    addBubble('doris', 'Hello? …Hello? Oh yes, I can hear you now. Who is this calling please, dear?');
+  };
+
+  S.ws.onmessage = evt => {
+    if (evt.data instanceof ArrayBuffer) {
+      const pcm16 = new Int16Array(evt.data);
+      const f32   = pcm16ToF32(pcm16);
+      const buf   = S.playbackCtx.createBuffer(1, f32.length, 24000);
+      buf.getChannelData(0).set(f32);
+      const src = S.playbackCtx.createBufferSource();
+      src.buffer = buf; src.connect(S.playbackCtx.destination);
+      const at = Math.max(S.nextPlayAt, S.playbackCtx.currentTime);
+      src.start(at); S.nextPlayAt = at + f32.length / 24000;
+    }
+  };
+  S.ws.onclose = () => endCall();
+  S.ws.onerror = () => showAlert('❌ WebSocket error', 'error');
+}
+
+function stopAudio() {
+  if (S.ws && S.ws.readyState === WebSocket.OPEN) S.ws.send(JSON.stringify({type:'end_call'}));
+  S.scriptProc  && S.scriptProc.disconnect();
+  S.audioCtx    && S.audioCtx.close();
+  S.captureStream && S.captureStream.getTracks().forEach(t => t.stop());
+  S.playbackCtx && S.playbackCtx.close();
+  S.ws          && S.ws.readyState !== WebSocket.CLOSED && S.ws.close();
+  S.ws = S.audioCtx = S.captureStream = S.scriptProc = S.playbackCtx = null;
+  S.nextPlayAt = 0;
+}
+
+function f32ToPcm16(f32) {
+  const out = new Int16Array(f32.length);
+  for (let i=0;i<f32.length;i++) { const s=Math.max(-1,Math.min(1,f32[i])); out[i]=s<0?s*0x8000:s*0x7FFF; }
+  return out;
+}
+function pcm16ToF32(pcm) {
+  const out = new Float32Array(pcm.length);
+  for (let i=0;i<pcm.length;i++) out[i]=pcm[i]/(pcm[i]<0?0x8000:0x7FFF);
+  return out;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FIRESTORE LISTENER
+══════════════════════════════════════════════════════════════ */
+let fsUnsub = [], fsDB = null;
+
+function initFirebase(cfg) {
+  if (!cfg.apiKey || !cfg.projectId) return;
+  try {
+    const app = firebase.apps.length ? firebase.app() : firebase.initializeApp({
+      apiKey: cfg.apiKey, projectId: cfg.projectId, appId: cfg.appId,
+      authDomain: cfg.projectId + '.firebaseapp.com',
+    });
+    fsDB = firebase.firestore(app);
+  } catch(e) { console.warn('Firebase init failed:', e); }
+}
+
+function subscribeSession(sessionId) {
+  if (!fsDB) return;
+  const sessionRef = fsDB.collection('calls').doc(sessionId);
+  const eventsRef  = sessionRef.collection('events').orderBy('timestamp','asc').limit(200);
+
+  fsUnsub.push(sessionRef.onSnapshot(snap => {
+    if (!snap.exists) return;
+    const d = snap.data();
+    if (typeof d.threat_score === 'number') { S.threatScore = d.threat_score; setScore(d.threat_score); el.statScore.textContent = d.threat_score; }
+    if (d.caller_profile) updateProfile(d.caller_profile);
+  }));
+
+  const seen = new Set();
+  fsUnsub.push(eventsRef.onSnapshot(snap => {
+    snap.docChanges().forEach(ch => {
+      if (ch.type === 'added' && !seen.has(ch.doc.id)) {
+        seen.add(ch.doc.id);
+        onThreatEvent({ eventId: ch.doc.id, sessionId, ...ch.doc.data(), timestamp: ch.doc.data().timestamp?.toMillis?.() ?? Date.now() });
+        if (ch.doc.data().grounding_result) onGrounding({ eventId: ch.doc.id, result: ch.doc.data().grounding_result });
+      }
+      if (ch.type === 'modified' && ch.doc.data().grounding_result)
+        onGrounding({ eventId: ch.doc.id, result: ch.doc.data().grounding_result });
+    });
+  }));
+}
+
+function unsubscribeAll() { fsUnsub.forEach(u => u()); fsUnsub = []; }
+
+/* ══════════════════════════════════════════════════════════════
+   EVENT HANDLERS
+══════════════════════════════════════════════════════════════ */
+function onThreatEvent(e) {
+  renderThreatCard(e);
+  S.totalEvents++; el.statEvents.textContent = S.totalEvents;
+  if (e.severity === 'CRITICAL' || e.severity === 'HIGH') {
+    burst(e.severity);
+    showAlert(`🚨 ${e.severity}: ${(e.category||'').replace(/_/g,' ')} — "${(e.evidence_snippet||'').slice(0,55)}…"`, 'critical');
+  }
+  addBubble('scammer', e.evidence_snippet || '', true);
+}
+
+function onGrounding(d) { renderGroundingCard(d); }
+
+/* ══════════════════════════════════════════════════════════════
+   UI RENDERING
+══════════════════════════════════════════════════════════════ */
+function renderThreatCard(e) {
+  clearEmpty(el.threatFeed);
+  const t = new Date(e.timestamp || Date.now()).toLocaleTimeString();
+  const d = document.createElement('div');
+  d.className = `threat-card ${e.severity || 'LOW'}`;
+  d.innerHTML = `
+    <div class="threat-hdr">
+      <span class="cat-badge cat-${e.category||'UNKNOWN'}">${(e.category||'UNKNOWN').replace(/_/g,' ')}</span>
+      <span class="sev-chip sev-${e.severity||'LOW'}">+${e.threat_score_delta||0}</span>
+    </div>
+    <p class="threat-evidence">${esc(e.evidence_snippet||'')}</p>
+    <div class="threat-ts">⏱ ${t}</div>`;
+  el.threatFeed.prepend(d);
+}
+
+function renderGroundingCard(d) {
+  const r = d.result; if (!r) return;
+  clearEmpty(el.gndFeed);
+  const c = document.createElement('div');
+  c.className = 'ground-card';
+  c.innerHTML = `
+    <div class="ground-hdr">
+      <span class="risk-badge risk-${r.risk_level||'UNKNOWN'}">${r.risk_level||'UNKNOWN'}</span>
+      <span style="font-size:11px;color:var(--text3)">Search Verified</span>
+    </div>
+    <div class="ground-query">🔍 ${esc(r.query||'')}</div>
+    ${r.snippet ? `<div class="ground-snippet">${esc((r.snippet||'').slice(0,140))}</div>` : ''}
+    ${r.source_url ? `<div class="ground-source">${esc(r.source_url)}</div>` : ''}`;
+  el.gndFeed.prepend(c);
+}
+
+function addBubble(speaker, text, doHighlight) {
+  clearEmpty(el.txFeed);
+  const t = new Date().toLocaleTimeString();
+  const lbl = speaker === 'doris' ? '🛡️ Doris' : '☠️ Caller';
+  const d = document.createElement('div');
+  d.className = `bubble ${speaker === 'scammer' ? 'scammer' : ''}`;
+  const bodyHtml = doHighlight ? highlight(text) : esc(text);
+  d.innerHTML = `
+    <div class="bubble-av ${speaker === 'doris' ? 'doris' : 'scammer'}">${speaker === 'doris' ? '🧓' : '☠️'}</div>
+    <div class="bubble-body">
+      <div class="bubble-meta"><span>${lbl}</span><span>${t}</span></div>
+      <div class="bubble-text">${bodyHtml}</div>
+    </div>`;
+  el.txFeed.appendChild(d);
+  el.txFeed.scrollTop = el.txFeed.scrollHeight;
+}
+
+function updateProfile(p) {
+  if (p.claimed_organization) { el.profOrg.textContent = p.claimed_organization; el.profOrg.classList.remove('empty'); }
+  if (p.claimed_agent_name)   { el.profName.textContent = p.claimed_agent_name;   el.profName.classList.remove('empty'); }
+  if (p.scam_script_type)     { el.profScript.textContent = p.scam_script_type.replace(/_/g,' ').toUpperCase(); el.profScript.classList.remove('empty'); }
+  if (p.callback_number)      { el.profCb.textContent = p.callback_number;        el.profCb.classList.remove('empty'); }
+}
+
+function clearEmpty(feed) { const e = feed.querySelector('.feed-empty'); if (e) e.remove(); }
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+const FRAUD_KW = ['IRS','Social Security','Microsoft','Amazon','Apple','FBI','DEA','arrest','warrant',
+  'wire transfer','Bitcoin','gift card','AnyDesk','TeamViewer','remote access',
+  'account suspended','lawsuit','federal','immediately','right now','do not hang up','do not tell'];
+function highlight(text) {
+  let out = esc(text);
+  FRAUD_KW.forEach(kw => { out = out.replace(new RegExp(`(${kw})`, 'gi'), '<span class="fraud-hl">$1</span>'); });
+  return out;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TIMER / STATUS
+══════════════════════════════════════════════════════════════ */
+function startTimer() {
+  S.timerIv = setInterval(() => {
+    if (!S.callStart) return;
+    const sec = Math.floor((Date.now() - S.callStart) / 1000);
+    const mm  = String(Math.floor(sec/60)).padStart(2,'0');
+    const ss  = String(sec % 60).padStart(2,'0');
+    el.timer.textContent = `${mm}:${ss}`;
+    el.statWasted.textContent = `${mm}:${ss}`;
+  }, 1000);
+}
+function stopTimer() { if (S.timerIv) { clearInterval(S.timerIv); S.timerIv = null; } }
+
+function setStatus(mode, text) {
+  el.pill.className = `status-pill ${mode}`;
+  el.pillTxt.textContent = text;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ALERTS
+══════════════════════════════════════════════════════════════ */
+function showAlert(msg, type) {
+  const a = document.createElement('div');
+  a.className = `alert${type === 'critical' ? ' critical' : ''}`;
+  a.innerHTML = `<span>${msg}</span>`;
+  el.alertBanner.prepend(a);
+  setTimeout(() => a.remove(), type === 'critical' ? 8000 : 4000);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   RESET UI
+══════════════════════════════════════════════════════════════ */
+function resetUI() {
+  el.threatFeed.innerHTML  = '<div class="feed-empty"><div class="feed-empty-icon">🛡️</div><span>Threat events will appear here in real-time</span></div>';
+  el.txFeed.innerHTML      = '<div class="feed-empty"><div class="feed-empty-icon">🎙️</div><span>Transcript will appear as the call progresses</span></div>';
+  el.gndFeed.innerHTML     = '<div style="padding:12px;text-align:center;color:var(--text3);font-size:12px;border:1px dashed var(--border);border-radius:var(--r-md)">Grounding results appear when caller claims are detected</div>';
+  S.threatScore = 0; S.totalEvents = 0;
+  el.statEvents.textContent = '0'; el.statWasted.textContent = '00:00';
+  el.statScore.textContent  = '0'; el.timer.textContent = '00:00';
+  setScore(0);
+  [el.profOrg, el.profName, el.profScript, el.profCb].forEach(e => { e.textContent = '—'; e.classList.add('empty'); });
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CONFIG
+══════════════════════════════════════════════════════════════ */
+function getCfg() { try { return JSON.parse(localStorage.getItem('pgv_config')); } catch { return null; } }
+function loadCfg() {
+  const c = getCfg(); if (!c) return;
+  el.inpBackend.value = c.backendUrl || '';
+  el.inpProject.value = c.projectId  || '';
+  el.inpApiKey.value  = c.apiKey     || '';
+  el.inpAppId.value   = c.appId      || '';
+}
+function saveCfg() {
+  const c = { backendUrl: el.inpBackend.value.trim(), projectId: el.inpProject.value.trim(),
+               apiKey: el.inpApiKey.value.trim(), appId: el.inpAppId.value.trim() };
+  localStorage.setItem('pgv_config', JSON.stringify(c));
+  S.backendUrl = c.backendUrl;
+  S.firebaseCfg = c.apiKey ? c : null;
+  if (S.firebaseCfg) initFirebase(S.firebaseCfg);
+  el.modal.classList.add('hidden');
+  showAlert('✅ Configuration saved', 'info');
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CALL LIFECYCLE
+══════════════════════════════════════════════════════════════ */
+async function startCall() {
+  const cfg = getCfg();
+  if (!cfg?.backendUrl && !S.demoMode) { el.modal.classList.remove('hidden'); return; }
+  S.backendUrl = cfg?.backendUrl || '';
+  S.firebaseCfg = cfg?.apiKey ? cfg : null;
+  if (S.firebaseCfg) initFirebase(S.firebaseCfg);
+
+  resetUI(); setStatus('active', 'INTERCEPTING');
+  el.btnInt.disabled = true; el.btnEnd.disabled = false;
+
+  if (S.demoMode) { S.sessionId = 'demo-' + Date.now(); S.callStart = Date.now(); startTimer(); startWave(); runDemo(); return; }
+
+  try {
+    const res = await fetch(`${S.backendUrl}/api/sessions`, { method:'POST', headers:{'Content-Type':'application/json'} });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const { session_id } = await res.json();
+    S.sessionId = session_id;
+    if (S.firebaseCfg) subscribeSession(session_id);
+    const wsUrl = S.backendUrl.replace(/^https?/,'ws') + `/ws/call/${session_id}`;
+    await startAudio(wsUrl);
+  } catch(e) {
+    showAlert('❌ Failed to start: ' + e.message, 'error');
+    setStatus('idle','STANDBY'); el.btnInt.disabled = false; el.btnEnd.disabled = true;
+  }
+}
+
+async function endCall() {
+  if (!S.sessionId) return;
+  stopAudio(); stopWave(); unsubscribeAll(); stopTimer();
+  if (!S.demoMode && S.backendUrl) {
+    fetch(`${S.backendUrl}/api/sessions/${S.sessionId}`, { method:'DELETE' }).catch(()=>{});
+  }
+  setStatus('idle','STANDBY'); el.btnInt.disabled = false; el.btnEnd.disabled = true;
+  showAlert(`📞 Call ended — ${S.totalEvents} threats detected`, 'info');
+  S.sessionId = null; S.demoMode = false; S.callStart = null;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   DEMO MODE SIMULATION
+══════════════════════════════════════════════════════════════ */
+const DEMO = [
+  { ms:2000,  spk:'scammer', txt:'This is Officer David Johnson calling from the Social Security Administration. Your Social Security Number has been suspended due to suspicious criminal activity.' },
+  { ms:5500,  cat:'IMPERSONATION',    sev:'HIGH',     ev:'Officer David Johnson from the Social Security Administration', delta:18, score:18,
+    profile:{ claimed_organization:'Social Security Administration', claimed_agent_name:'Officer David Johnson', scam_script_type:'social_security', callback_number:'+1 (202) 555-0147' } },
+  { ms:7000,  spk:'doris', txt:'Oh my goodness! Suspended? Oh dear, oh dear… now hold on honey, let me find my reading glasses, I can\'t see a thing without them… just one moment sweetheart…' },
+  { ms:12000, spk:'scammer', txt:'Ma\'am this is extremely urgent. You will be arrested by federal marshals within 24 hours unless you pay a fine of $2,400 immediately using Google Play gift cards.' },
+  { ms:15000, cat:'LEGAL_THREAT',     sev:'CRITICAL', ev:'arrested by federal marshals within 24 hours', delta:28, score:46 },
+  { ms:15200, cat:'GIFT_CARD',        sev:'CRITICAL', ev:'pay $2,400 fine using Google Play gift cards', delta:30, score:76 },
+  { ms:15400, cat:'URGENCY_PRESSURE', sev:'HIGH',     ev:'extremely urgent — you must pay immediately', delta:12, score:88 },
+  { ms:17000, spk:'doris', txt:'Gift cards? Oh my, I\'ve never bought one of those. Now what was it called again — Google Play? Is that something you get at the Walgreens dear? Let me ask my neighbor Ethel, she\'s very good with these things…' },
+  { ms:22000, spk:'scammer', txt:'Do NOT hang up! Do NOT tell anyone about this call! To clear the virus from your computer you need to download AnyDesk right now so I can access it remotely.' },
+  { ms:24500, cat:'REMOTE_ACCESS',    sev:'CRITICAL', ev:'download AnyDesk so I can access your computer', delta:10, score:98 },
+  { ms:24700, cat:'URGENCY_PRESSURE', sev:'HIGH',     ev:'Do NOT hang up! Do NOT tell anyone about this call', delta:2,  score:100 },
+  { ms:27000, spk:'doris', txt:'AnyDesk? Oh that sounds very complicated. You know my son Gerald handles all my computer problems, he\'s very good with technology. He\'s just at Costco right now, should be back in about 40 minutes… could you hold on dear? I\'ll put you on hold…' },
+];
+
+function runDemo() {
+  DEMO.forEach(ev => {
+    setTimeout(() => {
+      if (!S.sessionId) return;
+      if (ev.spk) {
+        addBubble(ev.spk, ev.txt, ev.spk === 'scammer');
+        if (ev.spk === 'scammer') pushWave(0.35 + Math.random() * 0.3);
+      }
+      if (ev.cat) {
+        onThreatEvent({ eventId:'demo-'+Date.now(), sessionId:S.sessionId, category:ev.cat, severity:ev.sev,
+          evidence_snippet:ev.ev, threat_score_delta:ev.delta, timestamp:Date.now() });
+        S.threatScore = ev.score; setScore(ev.score); el.statScore.textContent = ev.score;
+        if (ev.profile) updateProfile(ev.profile);
+      }
+    }, ev.ms);
+  });
+
+  // Grounding result after 16s
+  setTimeout(() => {
+    if (!S.sessionId) return;
+    onGrounding({ eventId:'demo-gr', result:{
+      query:'is 202-555-0147 Social Security Administration scam',
+      verified:false, risk_level:'HIGH_RISK',
+      source_url:'https://800notes.com/Phone.aspx/1-202-555-0147',
+      snippet:'This number has been reported 147 times as a Social Security Administration impersonation scam. Do not engage with callers from this number.',
+    }});
+  }, 16000);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   BOOT
+══════════════════════════════════════════════════════════════ */
+/* helper: launch demo directly, bypassing modal entirely */
+function launchDemo() {
+  if (S.sessionId) return; // already running
+  S.demoMode = true;
+  el.modal.classList.add('hidden');
+  if (el.demoHint) el.demoHint.style.display = 'none';
+  startCall();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initWaveform();
+  initGauge();
+  initParticles();
+  loadCfg();
+
+  // Only show modal if a real backend URL is needed (not for demo)
+  // Don't auto-show modal — let user choose via buttons
+
+  // Hide floating hint after 12s or on close
+  setTimeout(() => { if (el.demoHint) el.demoHint.style.display = 'none'; }, 12000);
+  if (el.hintClose) el.hintClose.addEventListener('click', e => { e.stopPropagation(); el.demoHint.style.display = 'none'; });
+  if (el.demoHint) el.demoHint.addEventListener('click', launchDemo);
+
+  // Button bindings
+  el.btnSave.addEventListener('click',    saveCfg);
+  el.btnDemo.addEventListener('click',    launchDemo);
+  el.btnTryDemo.addEventListener('click', launchDemo);
+  el.btnInt.addEventListener('click',     startCall);
+  el.btnEnd.addEventListener('click',     endCall);
+  el.btnSettings.addEventListener('click',() => el.modal.classList.remove('hidden'));
+});
+</script>
+</body>
+</html>

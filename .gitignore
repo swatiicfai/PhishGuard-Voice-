@@ -1,0 +1,53 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual environments ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Secrets & credentials ─────────────────────────────────────────────────────
+.env
+*.env.local
+serviceAccountKey.json
+*-serviceAccount.json
+*.pem
+*.key
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Firebase ──────────────────────────────────────────────────────────────────
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.firebaserc
+
+# ── Node (if using Firebase CLI) ──────────────────────────────────────────────
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+*.tar
+.dockerignore
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/

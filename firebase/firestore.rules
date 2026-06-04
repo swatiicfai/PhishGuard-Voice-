@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Call Sessions ──────────────────────────────────────────────────────
+    match /calls/{callId} {
+      // Anyone with the dashboard URL can read session data (public demo mode)
+      allow read: if true;
+      // Only the backend service account (or authenticated users) may write
+      allow write: if false;
+
+      // ── Threat Events (sub-collection) ──────────────────────────────────
+      match /events/{eventId} {
+        allow read: if true;
+        allow write: if false;
+      }
+    }
+  }
+}
