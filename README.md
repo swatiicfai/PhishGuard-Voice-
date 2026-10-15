@@ -9,6 +9,12 @@
 
 ---
 
+<p align="center">
+  <img src="dashboard.png" alt="PhishGuard Voice Dashboard" width="850">
+</p>
+
+---
+
 ## ✨ Features
 
 | Feature | Description |
@@ -23,6 +29,10 @@
 ---
 
 ## 🏗️ Architecture
+
+<p align="center">
+  <img src="architecture.png" alt="PhishGuard Voice Architecture" width="850">
+</p>
 
 ```
 Browser (WebRTC mic) ──┐
